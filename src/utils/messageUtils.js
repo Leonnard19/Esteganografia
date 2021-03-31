@@ -1,3 +1,13 @@
+//converter valor de byte para inteiro
+const bytesToInt = (bytes) => {
+  let result = 0
+  result = result | (0xFF000000 & parseInt(bytes[3]) << 24)
+  result = result | (0x00FF0000 & parseInt(bytes[2]) << 16)
+  result = result | (0x0000FF00 & parseInt(bytes[1]) << 8)
+  result = result | (0x000000FF & parseInt(bytes[0]) << 0)
+  return result
+}
+
 function hideMsgInImage(message, imageBytes) {
   let newImageBytes = [];
 
@@ -19,17 +29,24 @@ function hideMsgInImage(message, imageBytes) {
     });
   });
 
-  //console.log(newImageBytes)
   return newImageBytes;
 }
 
 function decryptMsgFromImage(imageBytes) {
+  // Inicio dos dados
+  const dataOffset = bytesToInt([
+    imageBytes[10],
+    imageBytes[11],
+    imageBytes[12],
+    imageBytes[13],
+  ])
+
   const textArray = [];
-
   let iterator = 0;
-  let index = 0;
-
+  let index = dataOffset;
   let tempChar = [];
+
+  // Msg começa na posição imageBytes[dataoffset]
 
   while (iterator !== 8) {
     const byte = imageBytes[index];
@@ -43,7 +60,7 @@ function decryptMsgFromImage(imageBytes) {
         return (acc += current);
       });
 
-      //Checa o character se é ponto
+      //Checa se o character é ponto
       if (char === '00101110') break;
 
       textArray.push(char);
@@ -54,7 +71,7 @@ function decryptMsgFromImage(imageBytes) {
     index++;
   }
 
-  //criar a msg
+  //criar a mensagem
   const message = textArray.reduce((acc, current) => {
     return (acc += String.fromCharCode(parseInt(current, 2)));
   }, '');
@@ -62,15 +79,28 @@ function decryptMsgFromImage(imageBytes) {
   return message;
 }
 
-// nao ta fazendo alteração do imageBytes
 function imageBytesWithEncodedMsg(encodedBytes, imageBytes) {
+  // Inicio dos dados
+  const dataOffset = bytesToInt([
+    imageBytes[10],
+    imageBytes[11],
+    imageBytes[12],
+    imageBytes[13],
+  ])
 
-  const cutImageBytes = imageBytes.slice(
-    encodedBytes.length,
-    imageBytes.length,
-  );
+  const encoded = new Uint8Array(encodedBytes); //converter para ArrayBuffer
 
-  const newImageBytes = encodedBytes.concat(cutImageBytes);
+  let primeira = new Uint8Array();
+  let ultima = new Uint8Array();
+  primeira = imageBytes.slice(0, dataOffset) // primeiro
+  ultima = imageBytes.slice(dataOffset + encodedBytes.length, imageBytes.length); //ultimo
+
+  // Unir todos
+  const newImageBytes = new Uint8Array([
+    ...primeira,
+    ...encoded,
+    ...ultima
+  ]);
 
   return newImageBytes;
 }
